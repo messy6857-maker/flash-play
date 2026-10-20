@@ -37,7 +37,7 @@
   #loading.hide{opacity:0;pointer-events:none;}
   #rotate-hint{
     display:none;position:fixed;top:calc(env(safe-area-inset-top) + 10px);left:50%;
-    transform:translateX(-50%);z-index:10;pointer-events:none;
+    transform:translateX(-50%);z-index:10;pointer-events:auto;cursor:pointer;
     background:rgba(0,0,0,.55);color:#fff;font-size:13px;
     padding:8px 16px;border-radius:20px;backdrop-filter:blur(6px);
     -webkit-backdrop-filter:blur(6px);white-space:nowrap;
@@ -68,15 +68,27 @@
   @media (orientation:portrait){
     #rotate-hint{display:block;}
   }
+  /* 小屏（手机）：存档按钮收进展开菜单，只留状态徽章+小箭头，不挤占画面 */
+  #savemore{display:none;}
+  #saveextra{display:contents;}
+  @media (max-width:560px){
+    #savemore{display:block;}
+    #savebar{flex-wrap:wrap;max-width:calc(100vw - 20px);}
+    #saveextra{display:none;order:-1;width:100%;}
+    #savebar.open #saveextra{display:flex;gap:6px;flex-wrap:wrap;}
+  }
 </style>
 </head>
 <body>
 <input type="file" id="importfile" accept=".json,application/json" style="display:none">
 <div id="savebar">
   <span class="chip" id="savestate">💾 存档检测中…</span>
-  <button id="savehelpbtn" type="button" style="display:none">存档被阻止？点这里</button>
-  <button id="exportbtn" type="button">⬇ 导出存档</button>
-  <button id="importbtn" type="button">⬆ 导入存档</button>
+  <button id="savemore" type="button">▾</button>
+  <span id="saveextra">
+    <button id="savehelpbtn" type="button" style="display:none">存档被阻止？点这里</button>
+    <button id="exportbtn" type="button">⬇ 导出存档</button>
+    <button id="importbtn" type="button">⬆ 导入存档</button>
+  </span>
 </div>
 <div id="savehelp">
   <h3>存档被浏览器阻止了</h3>
@@ -89,7 +101,7 @@
   <div>保险起见，也可以用下面的「导出存档」把进度存成文件，以后丢了一键导回。</div>
   <button class="close" id="savehelpclose" type="button">知道了</button>
 </div>
-<div id="rotate-hint">🔄 横屏体验更佳</div>
+<div id="rotate-hint">🔄 横过来玩，画面更大（点此关闭）</div>
 <div id="wrap">
   <div id="loading">🎮 游戏加载中，请稍候…</div>
 </div>
@@ -210,11 +222,19 @@ window.addEventListener("load", function(){
   });
 })();
 
-/* 竖屏时 6 秒后自动收起提示 */
-setTimeout(function(){
+/* 竖屏横屏提示：常驻显示（本次手机适配的关键引导），点一下关闭，本次会话内不再打扰 */
+(function(){
   var h = document.getElementById("rotate-hint");
-  if (h) h.style.display = "none";
-}, 6000);
+  try { if (sessionStorage.getItem("__fp_rh")) h.style.display = "none"; } catch(e){}
+  h.addEventListener("click", function(){
+    h.style.display = "none";
+    try { sessionStorage.setItem("__fp_rh", "1"); } catch(e){}
+  });
+})();
+/* 小屏：存档展开菜单 */
+document.getElementById("savemore").addEventListener("click", function(){
+  document.getElementById("savebar").classList.toggle("open");
+});
 </script>
 </body>
 </html>
