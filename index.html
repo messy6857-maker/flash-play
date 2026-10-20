@@ -42,12 +42,53 @@
     padding:8px 16px;border-radius:20px;backdrop-filter:blur(6px);
     -webkit-backdrop-filter:blur(6px);white-space:nowrap;
   }
+  #savebar{
+    position:fixed;left:calc(env(safe-area-inset-left) + 10px);bottom:calc(env(safe-area-inset-bottom) + 10px);
+    z-index:20;display:flex;gap:6px;align-items:center;pointer-events:none;
+    font-size:12px;
+  }
+  #savebar .chip,#savebar button{
+    pointer-events:auto;border:1px solid rgba(255,255,255,.18);color:#fff;
+    background:rgba(20,20,32,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    border-radius:16px;padding:6px 11px;cursor:pointer;font-size:12px;line-height:1;
+    font-family:inherit;
+  }
+  #savebar .chip{cursor:default;}
+  #savehelp{
+    display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:30;
+    width:min(88vw,430px);max-height:82vh;overflow:auto;background:#1b1b2b;color:#eee;
+    border-radius:14px;padding:18px 20px;box-shadow:0 16px 60px rgba(0,0,0,.6);
+    font-size:14px;line-height:1.75;
+  }
+  #savehelp.show{display:block;}
+  #savehelp h3{margin:0 0 6px;font-size:16px;}
+  #savehelp ol{margin:6px 0;padding-left:20px;}
+  #savehelp .close{margin-top:10px;width:100%;padding:9px;border:none;border-radius:9px;
+    background:#3d3d5c;color:#fff;font-size:14px;cursor:pointer;}
   @media (orientation:portrait){
     #rotate-hint{display:block;}
   }
 </style>
 </head>
 <body>
+<input type="file" id="importfile" accept=".json,application/json" style="display:none">
+<div id="savebar">
+  <span class="chip" id="savestate">💾 存档检测中…</span>
+  <button id="savehelpbtn" type="button" style="display:none">存档被阻止？点这里</button>
+  <button id="exportbtn" type="button">⬇ 导出存档</button>
+  <button id="importbtn" type="button">⬆ 导入存档</button>
+</div>
+<div id="savehelp">
+  <h3>存档被浏览器阻止了</h3>
+  <div>游戏进度保存在浏览器本地，但你的 Safari 现在不让网页存数据，刷新就会丢。按下面检查：</div>
+  <ol>
+    <li>打开 iPad「设置 → Safari 浏览器」，找到「阻止所有 Cookie」，把它<b>关掉</b>；</li>
+    <li>不要用「无痕浏览」标签页打开本页（无痕模式关掉标签页数据就没了）；</li>
+    <li>改好后刷新本页，左下角显示「💾」就是能存了。</li>
+  </ol>
+  <div>保险起见，也可以用下面的「导出存档」把进度存成文件，以后丢了一键导回。</div>
+  <button class="close" id="savehelpclose" type="button">知道了</button>
+</div>
 <div id="rotate-hint">🔄 横屏体验更佳</div>
 <div id="wrap">
   <div id="loading">🎮 游戏加载中，请稍候…</div>
@@ -86,6 +127,89 @@ window.addEventListener("load", function(){
     fail("播放器初始化失败，请用 Safari 打开本页面");
   }
 });
+
+/* ==== 存档自检与备份 ====
+   Ruffle 把游戏存档(SharedObject)写在本机 localStorage 里，值以 LSO 签名(AL8)开头 */
+(function(){
+  var PRE = "__fp_";
+  var blocked = false, saveKeys = [];
+  function lsGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
+  function lsSet(k, v){ try { localStorage.setItem(k, v); return true; } catch(e){ return false; } }
+  // 1) 写入是否被拒（阻止所有 Cookie / 异常设置时 setItem 会直接抛错）
+  if (!lsSet(PRE + "probe", "1")) blocked = true;
+  // 2) 同一标签页刷新过（sessionStorage 还在）但本地标记没了 → 数据没保住（无痕等）
+  var wasAlive = false;
+  try { wasAlive = !!sessionStorage.getItem(PRE + "alive"); sessionStorage.setItem(PRE + "alive", "1"); } catch(e){}
+  var everSeen = !!lsGet(PRE + "seen");
+  if (!blocked && wasAlive && !everSeen) blocked = true;
+  lsSet(PRE + "seen", "1");
+  function scanSaves(){
+    saveKeys = [];
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf(PRE) !== 0) {
+          var v = localStorage.getItem(k);
+          if (v && v.indexOf("AL8") === 0) saveKeys.push(k);
+        }
+      }
+    } catch(e){}
+    return saveKeys.length > 0;
+  }
+  var chip = document.getElementById("savestate");
+  var helpBtn = document.getElementById("savehelpbtn");
+  function refresh(){
+    if (blocked) {
+      chip.textContent = "🔴 浏览器阻止了本地存档";
+      helpBtn.style.display = "";
+      return;
+    }
+    chip.textContent = scanSaves() ? "💾 存档已保存在本机" : "💾 暂无存档（过关后自动保存）";
+  }
+  refresh();
+  setInterval(refresh, 3000);
+  helpBtn.addEventListener("click", function(){
+    document.getElementById("savehelp").classList.add("show");
+  });
+  document.getElementById("savehelpclose").addEventListener("click", function(){
+    document.getElementById("savehelp").classList.remove("show");
+  });
+  document.getElementById("exportbtn").addEventListener("click", function(){
+    scanSaves();
+    if (!saveKeys.length) { alert("现在还没有存档，先玩一关再导出吧"); return; }
+    var data = {};
+    saveKeys.forEach(function(k){ data[k] = localStorage.getItem(k); });
+    var blob = new Blob([JSON.stringify({game: "flash-play", saves: data}, null, 2)], {type: "application/json"});
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "美丽大蜕变-存档.json";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+  });
+  var fileInput = document.getElementById("importfile");
+  document.getElementById("importbtn").addEventListener("click", function(){ fileInput.click(); });
+  fileInput.addEventListener("change", function(){
+    var f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    var r = new FileReader();
+    r.onload = function(){
+      try {
+        var obj = JSON.parse(String(r.result));
+        var saves = obj.saves || obj;
+        var n = 0;
+        Object.keys(saves).forEach(function(k){
+          if (typeof saves[k] === "string") { localStorage.setItem(k, saves[k]); n++; }
+        });
+        if (!n) { alert("这个文件里没有可用的存档"); return; }
+        alert("存档已导入，刷新页面生效");
+        location.reload();
+      } catch(e){ alert("导入失败：文件格式不对"); }
+    };
+    r.readAsText(f);
+    fileInput.value = "";
+  });
+})();
+
 /* 竖屏时 6 秒后自动收起提示 */
 setTimeout(function(){
   var h = document.getElementById("rotate-hint");
