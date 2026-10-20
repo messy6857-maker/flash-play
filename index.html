@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>美丽大蜕变</title>
+<script src="ruffle.js"></script>
+<style>
+  html,body{margin:0;padding:0;height:100%;background:#14141f;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;}
+  #wrap{width:min(100vw,calc(100dvh * 700 / 547));aspect-ratio:700/547;position:relative;
+    box-shadow:0 0 40px rgba(0,0,0,.6);background:#000;}
+  ruffle-player{width:100%;height:100%;display:block;}
+  #loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:#fff;font-size:17px;background:#14141f;z-index:2;transition:opacity .4s;
+    text-align:center;padding:0 24px;box-sizing:border-box;}
+  #loading.hide{opacity:0;pointer-events:none;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="loading">🎮 游戏加载中，请稍候…</div>
+</div>
+<script>
+window.RufflePlayer = window.RufflePlayer || {};
+window.RufflePlayer.config = {
+  "autoplay": "on",
+  "unmuteOverlay": "hidden",
+  "splashScreen": false,
+  "contextMenu": false,
+  "scale": "showAll"
+};
+function fail(msg){
+  var el = document.getElementById("loading");
+  el.classList.remove("hide");
+  el.textContent = msg;
+}
+window.addEventListener("load", function(){
+  try {
+    var ruffle = window.RufflePlayer.newest();
+    var player = ruffle.createPlayer();
+    document.getElementById("wrap").appendChild(player);
+    player.load({ url: "game.swf" }).then(function(){
+      document.getElementById("loading").classList.add("hide");
+    }).catch(function(){
+      fail("游戏加载失败，请检查网络后刷新重试");
+    });
+    setTimeout(function(){
+      var el = document.getElementById("loading");
+      if (!el.classList.contains("hide")) {
+        el.textContent = "🎮 还在加载中（首次打开需要下载约 20MB 资源），请再耐心等一会儿…";
+      }
+    }, 15000);
+  } catch(e) {
+    fail("播放器初始化失败，请用 Safari 打开本页面");
+  }
+});
+</script>
+</body>
+</html>
